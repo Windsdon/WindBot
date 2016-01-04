@@ -13,6 +13,21 @@ var messages = require("./messages.json");
 var uidFromMention = /<@([0-9]+)>/;
 
 var commands = {
+    help: {
+        permission: {
+            uid: ["114855677482106888"],
+            group: ["dev"]
+        },
+        action: function(args, e) {
+            var cmds = Object.keys(commands);
+            var cmdlist = "* " + cmds.join("\n* !");
+            bot.sendMessage({
+                to: e.channelID,
+                message: "```\nBeep boop, I'm a bot!\n\nCommands:\n" + cmdlist + "```"
+            })
+        }
+
+    },
     ping: {
         permission: {
             uid: ["114855677482106888"],
@@ -26,6 +41,9 @@ var commands = {
         }
     },
     myid: {
+        permission: {
+            group: ["dev"]
+        },
         action: function(args, e) {
             bot.sendMessage({
                 to: e.channelID,
@@ -59,7 +77,7 @@ var commands = {
                 var title = "\n\n**" + args.slice(0, args.indexOf("%")).join(" ") + "**\n";
                 var opts = args.slice(args.indexOf("%") + 1);
             }
-            votes[e.channelID] = new Vote(opts);
+            votes[e.channelID] = new Vote(opts, title);
             var pollopts = votes[e.channelID].optionsString();
             bot.sendMessage({
                 to: e.channelID,
@@ -76,6 +94,18 @@ var commands = {
                 return;
             }
             console.log("User voting", votes[e.channelID].vote(e.userID, args[0]));
+        }
+    },
+    voteremind: {
+        action: function(args, e) {
+            if(!votes[e.channelID]) {
+                return;
+            }
+
+            bot.sendMessage({
+                to: e.channelID,
+                message: "<@" + e.userID + "> started a poll. Vote with `!vote <option number>`." + votes[e.channelID].title + "\nOptions are:\n ```\n" + votes[e.channelID].optionsString() + "\n```"
+            })
         }
     },
     voteend: {
@@ -96,7 +126,7 @@ var commands = {
             console.log("Results: " + pollresult);
             bot.sendMessage({
                 to: e.channelID,
-                message: "Poll ended! Results:\n ```\n" + pollresult + "\n```"
+                message: "Poll ended! Results:\n**" + votes[e.channelID].title + "**\n ```\n" + pollresult + "\n```"
             });
             delete votes[e.channelID];
         }
@@ -171,7 +201,7 @@ var commands = {
                 for(var i = 0; i < g.length; i++) {
                     str += "`" + g[i] + "`: "
                     for(j = 0; j < groups[g[i]].length; j++) {
-                        str += "<@" + groups[g[i]][j] + ">";
+                        str += " <@" + groups[g[i]][j] + ">";
                     }
                     str += "\n";
                 }
@@ -188,6 +218,10 @@ var commands = {
             uid: ["114855677482106888"]
         },
         action: function(args, e) {
+            bot.sendMessage({
+                to: e.channelID,
+                message: "You monster >.<"
+            });
             process.exit(0);
         }
     },
@@ -252,6 +286,25 @@ var commands = {
                 message: args.join(" ")
             });
         }
+    },
+    join: {
+        permission: {
+            group: ["dev"]
+        },
+        action: function(args, e) {
+            bot.acceptInvite(args[0]);
+        }
+    },
+    bat: {
+        permission: {
+            group: ["dev"]
+        },
+        action: function(args, e) {
+            bot.uploadFile({
+                channel: e.channelID,
+                file: fs.createReadStream("media/batbroken.gif")
+            })
+        }
     }
 }
 
@@ -290,6 +343,10 @@ function restart() {
 function processMessage(user, userID, channelID, message, rawEvent) {
     console.log("Got message " + message + " on channel " + channelID + " from " + user + " (" + userID + ")");
 
+    if(userID == bot.id) {
+        return;
+    }
+
     var parsed = parse(message);
     if(!parsed) {
         console.log("Not a command");
@@ -321,7 +378,7 @@ function processMessage(user, userID, channelID, message, rawEvent) {
 
 function isUserInGroup(uid, group) {
     if(!groups || !groups[group]) {
-        return fasle;
+        return false;
     }
     for(var i = 0; i < groups[group].length; i++) {
         if(groups[group][i] == uid) {

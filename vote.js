@@ -1,7 +1,8 @@
-function Vote(options) {
+function Vote(options, title) {
     this.options = options;
     this.voted = [];
     this.votes = new Array(this.options.length);
+    this.title = title;
     for(var i = 0; i < this.options.length; i++) {
         this.votes[i] = 0;
     }
