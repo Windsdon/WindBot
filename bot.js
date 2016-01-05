@@ -2,6 +2,7 @@ var fs = require("fs");
 var DiscordClient = require('discord.io');
 var config = require("./config.json");
 var Vote = require("./vote");
+var Tracker = require("./tracker");
 
 var bot;
 
@@ -9,18 +10,23 @@ var votes = [];
 
 var groups = require("./groups.json");
 var messages = require("./messages.json");
+var channels = require("./channels.json");
+var away = [];
 
 var uidFromMention = /<@([0-9]+)>/;
+
+var startTime = (new Date()).getTime();
 
 var commands = {
     help: {
         permission: {
             uid: ["114855677482106888"],
-            group: ["dev"]
+            group: ["dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             var cmds = Object.keys(commands);
-            var cmdlist = "* " + cmds.join("\n* !");
+            var cmdlist = "* !" + cmds.join("\n* !");
             bot.sendMessage({
                 to: e.channelID,
                 message: "```\nBeep boop, I'm a bot!\n\nCommands:\n" + cmdlist + "```"
@@ -31,7 +37,8 @@ var commands = {
     ping: {
         permission: {
             uid: ["114855677482106888"],
-            group: ["dev"]
+            group: ["dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             bot.sendMessage({
@@ -42,18 +49,37 @@ var commands = {
     },
     myid: {
         permission: {
-            group: ["dev"]
+            group: ["dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             bot.sendMessage({
                 to: e.channelID,
-                message: "<@" + e.userID + ">, you ID is " + e.userID
+                message: "<@" + e.userID + ">, your ID is " + e.userID
+            })
+        }
+    },
+    id: {
+        permission: {
+            group: ["dev"],
+            onlyMonitored: true
+        },
+        action: function(args, e) {
+            if(!args[0] || !uidFromMention.test(args[0])) {
+                return;
+            }
+
+            var uid = uidFromMention.exec(args[0])[1];
+            bot.sendMessage({
+                to: e.channelID,
+                message: "<@" + e.userID + "> " + uid
             })
         }
     },
     votestart: {
         permission: {
             group: ["votemakers", "dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             if(votes[e.channelID]) {
@@ -86,6 +112,9 @@ var commands = {
         }
     },
     vote: {
+        permission: {
+            onlyMonitored: true
+        },
         action: function(args, e) {
             if(!votes[e.channelID]) {
                 return;
@@ -97,6 +126,10 @@ var commands = {
         }
     },
     voteremind: {
+        permission: {
+            group: ["votemakers", "dev"],
+            onlyMonitored: true
+        },
         action: function(args, e) {
             if(!votes[e.channelID]) {
                 return;
@@ -111,6 +144,7 @@ var commands = {
     voteend: {
         permission: {
             group: ["votemakers", "dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             console.log("Finish vote!");
@@ -134,7 +168,8 @@ var commands = {
     group: {
         permission: {
             uid: ["114855677482106888"],
-            group: ["dev"]
+            group: ["dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             if(args[0] == "add") {
@@ -213,6 +248,29 @@ var commands = {
             }
         }
     },
+    rights: {
+        permission: {
+            onlyMonitored: true
+        },
+        action: function(args, e) {
+            var subject = e.userID;
+            if(args[0]) {
+                subject = uidFromMention.exec(args[0])[1];
+            }
+            var str = "<@" + subject + ">'s groups: ";
+            var g = Object.keys(groups)
+            for(var i = 0; i < g.length; i++) {
+                if(isUserInGroup(subject, g[i])) {
+                    str += " `"+g[i]+"` ";
+                }
+            }
+
+            bot.sendMessage({
+                to: e.channelID,
+                message: str
+            });
+        }
+    },
     kill: {
         permission: {
             uid: ["114855677482106888"]
@@ -235,7 +293,8 @@ var commands = {
     },
     message: {
         permission: {
-            group: ["dev", "messages"]
+            group: ["dev", "messages"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             if(args[0] == "add") {
@@ -278,7 +337,8 @@ var commands = {
     say: {
         permission: {
             uid: ["114855677482106888"],
-            group: ["dev"]
+            group: ["dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             bot.sendMessage({
@@ -289,7 +349,8 @@ var commands = {
     },
     join: {
         permission: {
-            group: ["dev"]
+            group: ["dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             bot.acceptInvite(args[0]);
@@ -297,7 +358,8 @@ var commands = {
     },
     bat: {
         permission: {
-            group: ["dev"]
+            group: ["dev"],
+            onlyMonitored: true
         },
         action: function(args, e) {
             bot.uploadFile({
@@ -305,7 +367,73 @@ var commands = {
                 file: fs.createReadStream("media/batbroken.gif")
             })
         }
+    },
+    track: {
+        permission: {
+            group: ["dev"],
+            onlyMonitored: true
+        },
+        action: function(args, e) {
+            if(args[0] == "start") {
+                bot.sendMessage({
+                    to: e.channelID,
+                    message: "Message tracking started!"
+                });
+            }
+        }
+    },
+    status: {
+        permission: {
+            group: ["dev"],
+            onlyMonitored: true
+        },
+        action: function(args, e) {
+            var t = Math.floor(((new Date()).getTime() - startTime) / 1000);
+            bot.sendMessage({
+                to: e.channelID,
+                message: "I've been running for `" + t + " seconds`"
+            });
+        }
+    },
+    enable: {
+        permission: {
+            group: ["dev"],
+            onlyMonitored: false
+        },
+        action: function(args, e) {
+            if(channels.indexOf(e.channelID) != -1) {
+                bot.sendMessage({
+                    to: e.channelID,
+                    message: "I'm already here >.<"
+                });
+                return;
+            }
+            channels.push(e.channelID);
+            bot.sendMessage({
+                to: e.channelID,
+                message: "I will now monitor this channel :D"
+            });
+            saveConfig();
+        }
+    },
+    disable: {
+        permission: {
+            group: ["dev"],
+            onlyMonitored: true
+        },
+        action: function(args, e) {
+            if(channels.indexOf(e.channelID) == -1) {
+                return;
+            }
+            channels.splice(channels.indexOf(e.channelID), 1);
+            saveConfig();
+            bot.sendMessage({
+                to: e.channelID,
+                message: "I will no longer monitor this channel :("
+            });
+        }
     }
+
 }
 
 
@@ -317,6 +445,12 @@ function saveConfig() {
     });
 
     fs.writeFile("messages.json", JSON.stringify(messages), function(error) {
+         if (error) {
+           console.error("write error:  " + error.message);
+         }
+    });
+
+    fs.writeFile("channels.json", JSON.stringify(channels), function(error) {
          if (error) {
            console.error("write error:  " + error.message);
          }
@@ -353,7 +487,7 @@ function processMessage(user, userID, channelID, message, rawEvent) {
         return;
     }
 
-    if(!canUserRun(parsed.command, userID)) {
+    if(!canUserRun(parsed.command, userID, channelID)) {
         console.log("User cant run this command");
         return;
     }
@@ -389,15 +523,29 @@ function isUserInGroup(uid, group) {
     return false;
 }
 
-function canUserRun(command, uid) {
+function canUserRun(command, uid, channelID) {
     if(!commands[command]) {
-        if(messages[command]) {
+        if(messages[command] && channels.indexOf(channelID) != -1) {
             return true;
         }
         return false;
     }
 
     if(!commands[command].permission) {
+        if(channels.indexOf(channelID) != -1){
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    if(commands[command].permission.onlyMonitored) {
+        if(channels.indexOf(channelID) == -1){
+            return false;
+        }
+    }
+
+    if(!commands[command].permission.uid && !commands[command].permission.group) {
         return true;
     }
 
