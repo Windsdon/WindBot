@@ -431,7 +431,7 @@ function processMessage(user, userID, channelID, message, rawEvent) {
             return;
         }
         try {
-            eval(message.substring(message.indexOf(" ")));
+            eval(message.substring(database.config.calling.length).substring(message.indexOf(" ")));
         } catch(e) {
             bot.sendMessage({
                 to: channelID,

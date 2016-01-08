@@ -4,6 +4,7 @@ var config = require("./config.json");
 var temp = require("temp").track();
 var https = require("https");
 var fs = require("fs");
+var ytdl = require('ytdl-core');
 
 SC.init({
     id: config.soundcloud.id,
@@ -156,6 +157,80 @@ module.exports = {
                     });
                 });
             });
+        } else if (args[0] == "yt") {
+            if(!args[1] || !args[1].match(/^[A-Za-z0-9_\-]+$/)) {
+                e.bot.sendMessage({
+                    to: e.channelID,
+                    message: "<@" + e.userID + "> Usage: `!audio yt <id> [play|queue]`"
+                });
+                return;
+            }
+            var context = e;
+            var self = this;
+            var shouldQueue = false;
+            var shouldPlay = false;
+            var videoID = args[1];
+            if(args[2] == "play") {
+                shouldPlay = true;
+            } else if(args[2] == "queue") {
+                shouldQueue = true;
+            }
+            if(context.db.sounds[videoID]) {
+                context.bot.sendMessage({
+                    to: context.channelID,
+                    message: "<@" + e.userID + "> I already have that!"
+                });
+                if(shouldPlay) {
+                    console.log("starting play sequence");
+                    self.action(["play", videoID], context);
+                } else if(shouldQueue) {
+                    self.action(["queue", videoID], context)
+                }
+                return;
+            }
+            ytdl.getInfo("http://youtube.com/watch?v=" + videoID, {
+                filter: "audio"
+            }, function(err, info) {
+                if(!info) {
+                    e.bot.sendMessage({
+                        to: e.channelID,
+                        message: "<@" + e.userID + "> That video isn't valid!"
+                    });
+                    return;
+                }
+                var path = './media/audio/' + videoID + '.mp4';
+                var saveFormat = false;
+                var stream = ytdl.downloadFromInfo(info, {
+                    filter: "audioonly"
+                }).on("info", function(info, format) {
+                    console.log(format);
+                    path = './media/audio/' + videoID + '.' + format.container;
+                    saveFormat = format;
+                }).on("response", function(response) {
+                    if(!path) {
+                        e.bot.sendMessage({
+                            to: e.channelID,
+                            message: "<@" + e.userID + "> couldn't get info in time - using mp4"
+                        });
+                    }
+                    e.bot.sendMessage({
+                        to: e.channelID,
+                        message: "<@" + e.userID + "> Downloading `" + info.title + "` (" + (parseInt(response.headers['content-length'])/1048576).toFixed(2) +  " MB)"
+                    });
+                    response.on("end", function() {
+                        console.log("--- FINISHED!");
+                        self.add(context, videoID, videoID + ".mp4", {
+                            name: info.title
+                        });
+                        if(shouldPlay) {
+                            console.log("starting play sequence");
+                            self.action(["play", videoID], context);
+                        } else if(shouldQueue) {
+                            self.action(["queue", videoID], context)
+                        }
+                    })
+                }).pipe(fs.createWriteStream(path));
+            });
         } else if (args[0] == "remove") {
             if(!e.db.sounds[args[1]]) {
                 e.bot.sendMessage({
@@ -176,12 +251,17 @@ module.exports = {
                 to: e.channelID,
                 message: "<@" + e.userID + "> queued: `" + args[1] + "`"
             });
+            if(!this.playing) {
+                this.playNext(e, this.announceChannel);
+            }
         } else if(args[0] == "announce") {
             this.announceChannel = e.channelID;
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "<@" + e.userID + "> Now active here!"
             });
+        } else if(args[0] == "next") {
+            this.playNext(e, this.announceChannel);
         } else {
             e.bot.sendMessage({
                 to: e.channelID,
@@ -288,6 +368,7 @@ module.exports = {
             console.log("**** Playing " + filename);
             stream.playAudioFile(filename);
             stream.once('fileEnd', function() {
+                self.playing = false;
                 self.playNext(e, announceChannel);
             });
         });
