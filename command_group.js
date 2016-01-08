@@ -43,11 +43,18 @@ module.exports = {
 
             e.db.saveConfig();
         } else if(args[0] == "remove") {
+            if(!uidFromMention.test(args[2])) {
+                e.bot.sendMessage({
+                    to: e.channelID,
+                    message: "<@" + e.userID + "> that's not a valid mention!"
+                });
+                return;
+            }
             var group = args[1];
             var user = uidFromMention.exec(args[2])[1];
 
-            if(groups[group]) {
-                if(!isUserInGroup(user, group)) {
+            if(e.db.groups[group]) {
+                if(!e.db.isUserInGroup(user, group)) {
                     e.bot.sendMessage({
                         to: e.channelID,
                         message: "<@" + e.userID + "> user " + args[2] + " (" + user + ")  is not in group `" + group + "`"

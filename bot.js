@@ -345,7 +345,8 @@ var commands = {
                 message: str
             });
         }
-    }
+    },
+    audio: require("./command_audio.js")
 
 }
 

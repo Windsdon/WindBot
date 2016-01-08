@@ -6,6 +6,7 @@ function database() {
     this.channels = require("./channels.json");
     this.passes = require("./pass.json");
     this.images = require("./images.json");
+    this.sounds = require("./sounds.json");
 
     this.saveConfig = function() {
         fs.writeFile("groups.json", JSON.stringify(this.groups), function(error) {
@@ -27,6 +28,12 @@ function database() {
         });
 
         fs.writeFile("images.json", JSON.stringify(this.images), function(error) {
+             if (error) {
+               console.error("write error:  " + error.message);
+             }
+        });
+
+        fs.writeFile("sounds.json", JSON.stringify(this.sounds), function(error) {
              if (error) {
                console.error("write error:  " + error.message);
              }
