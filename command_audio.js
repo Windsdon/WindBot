@@ -16,7 +16,18 @@ module.exports = {
         group: ["audio", "devs"]
     },
     currentChannel: false,
+    announceChannel: false,
+    playing: false,
+    queue: [],
     action: function(args, e) {
+        console.log(args);
+        if(false && this.announceChannel != e.channelID && args[0] != "announce") {
+            e.bot.sendMessage({
+                to: e.channelID,
+                message: "<@" + e.userID + "> I can't be used here! Please change me to this channel before!"
+            });
+            return;
+        }
         if(args[0] == "join") {
             var channel = args[1];
             var self = this;
@@ -53,15 +64,7 @@ module.exports = {
                 return;
             }
 
-            var filename = e.db.sounds[args[1]].file;
-            e.bot.sendMessage({
-                to: e.channelID,
-                message: "<@" + e.userID + "> Now playing: " + this.getInfoMessage(e, args[1])
-            });
-            e.bot.getAudioContext(this.currentChannel, function(stream) {
-                console.log("**** Playing " + filename);
-                stream.playAudioFile(filename);
-            });
+            this.play(e, args[1], this.announceChannel);
         } else if(args[0] == "add") {
             if(args.length < 3) {
                 e.bot.sendMessage({
@@ -73,7 +76,6 @@ module.exports = {
 
             this.add(e, args[2]);
         } else if(args[0] == "stop") {
-
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "<@" + e.userID + "> Stopping all audio playback"
@@ -90,7 +92,23 @@ module.exports = {
         } else if(args[0] == "sc") {
             var context = e;
             var self = this;
+            var shouldQueue = false;
+            var shouldPlay = false;
+            if(args[2] == "play") {
+                shouldPlay = true;
+                console.log("Playing after!");
+            } else if(args[2] == "queue") {
+                shouldQueue = true;
+            }
             self.getTrackID("https://soundcloud.com/" + args[1], function(trackID) {
+                console.log("TrackID: ", trackID);
+                if(!trackID) {
+                    context.bot.sendMessage({
+                        to: context.channelID,
+                        message: "<@" + e.userID + "> that track is invalid: " + trackID
+                    });
+                    return;
+                }
                 context.bot.sendMessage({
                     to: context.channelID,
                     message: "<@" + e.userID + "> your track has id `" + trackID + "`"
@@ -100,6 +118,12 @@ module.exports = {
                         to: context.channelID,
                         message: "<@" + e.userID + "> I already have that!"
                     });
+                    if(shouldPlay) {
+                        console.log("starting play sequence");
+                        self.action(["play", trackID], context);
+                    } else if(shouldQueue) {
+                        self.action(["queue", trackID], context)
+                    }
                     return;
                 }
                 var path = './media/audio/' + trackID + '.mp3';
@@ -123,6 +147,11 @@ module.exports = {
                                 author: trackInfo.user.username,
                                 provider: trackInfo.permalink_url
                             });
+                            if(shouldPlay) {
+                                self.action(["play", trackID], context);
+                            } else if(shouldQueue) {
+                                self.action(["queue", trackID], context)
+                            }
                         });
                     });
                 });
@@ -141,10 +170,22 @@ module.exports = {
                 to: e.channelID,
                 message: "<@" + e.userID + "> removed " + args[1]
             });
+        } else if (args[0] == "queue") {
+            this.queue.push(args[1]);
+            e.bot.sendMessage({
+                to: e.channelID,
+                message: "<@" + e.userID + "> queued: `" + args[1] + "`"
+            });
+        } else if(args[0] == "announce") {
+            this.announceChannel = e.channelID;
+            e.bot.sendMessage({
+                to: e.channelID,
+                message: "<@" + e.userID + "> Now active here!"
+            });
         } else {
             e.bot.sendMessage({
                 to: e.channelID,
-                message: "<@" + e.userID + "> Usage: !sound <join|leave|add|remove|play|stop|sc>"
+                message: "<@" + e.userID + "> Usage: !audio <join|leave|add|remove|play|stop|sc>"
             });
         }
     },
@@ -180,9 +221,9 @@ module.exports = {
         SC.get('/resolve', {
             url: url
         }, function(err, val) {
-            console.log(val);
+            console.log(err, val);
             var test = /tracks\/([0-9]+)/;
-            if(val.errors) {
+            if(!val || val.errors) {
                 callback(false);
                 return;
             }
@@ -230,6 +271,36 @@ module.exports = {
         });
 
         e.db.saveConfig();
+    },
+    play: function(e, id, announceChannel) {
+        var filename = e.db.sounds[id].file;
+        console.log("Play requested for " + id);
+        e.bot.sendMessage({
+            to: announceChannel,
+            message: "Now playing: " + this.getInfoMessage(e, id)
+        });
+        var self = this;
+        e.bot.getAudioContext(this.currentChannel, function(stream) {
+            if(self.playing) {
+                stream.stopAudioFile();
+            }
+            self.playing = id;
+            console.log("**** Playing " + filename);
+            stream.playAudioFile(filename);
+            stream.once('fileEnd', function() {
+                self.playNext(e, announceChannel);
+            });
+        });
+    },
+    playNext: function(e, announceChannel) {
+        if(this.queue.length == 0) {
+            e.bot.sendMessage({
+                to: announceChannel,
+                message: "**Reached the end of the queue!**"
+            });
+            return;
+        }
+        this.action(["play", this.queue.splice(0, 1)[0]], e);
     }
 
 }

@@ -7,6 +7,7 @@ function database() {
     this.passes = require("./pass.json");
     this.images = require("./images.json");
     this.sounds = require("./sounds.json");
+    this.config = require("./config.json");
 
     this.saveConfig = function() {
         fs.writeFile("groups.json", JSON.stringify(this.groups), function(error) {
@@ -34,6 +35,12 @@ function database() {
         });
 
         fs.writeFile("sounds.json", JSON.stringify(this.sounds), function(error) {
+             if (error) {
+               console.error("write error:  " + error.message);
+             }
+        });
+
+        fs.writeFile("config.json", JSON.stringify(this.config), function(error) {
              if (error) {
                console.error("write error:  " + error.message);
              }

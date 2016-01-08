@@ -17,6 +17,8 @@ var uidFromMention = /<@([0-9]+)>/;
 
 var startTime = (new Date()).getTime();
 
+var masterID = "114855677482106888";
+
 var commands = {
     channel: require("./command_channel.js"),
     help: {
@@ -305,6 +307,7 @@ var commands = {
                 to: e.channelID,
                 message: "<@" + e.userID + "> rolled a " + num
             });
+            e.re.log(e.user + " rolled: " + num);
         }
     },
     pass: {
@@ -363,7 +366,26 @@ var commands = {
             });
         }
     },
-    audio: require("./command_audio.js")
+    audio: require("./command_audio.js"),
+    callme: {
+        permission: {
+            group: ["dev"],
+            onlyMonitored: true
+        },
+        action: function(args, e) {
+            if(!args[0]) {
+                e.db.config.calling = "!";
+                e.db.saveConfig();
+                return;
+            }
+            if(args[1]) {
+                e.db.config.calling = args[0];
+            } else {
+                e.db.config.calling = args[0] + " ";
+            }
+            e.db.saveConfig();
+        }
+    }
 
 }
 
@@ -374,7 +396,7 @@ function restart() {
 
     bot = new DiscordClient({
         autorun: true,
-        token: config.token
+        token: database.config.token
     });
 
     bot.on('ready', function() {
@@ -384,8 +406,6 @@ function restart() {
     bot.on('message', processMessage);
     console.log(database);
 }
-
-var masterID = "114855677482106888";
 
 function processMessage(user, userID, channelID, message, rawEvent) {
     console.log("Got message " + message.replace(/[^A-Za-z0-9 ]/, '?') + " on channel "
@@ -434,6 +454,7 @@ function processMessage(user, userID, channelID, message, rawEvent) {
                 });
                 return;
             }
+            commands[parsed.command].lastTime = (new Date()).getTime();
         }
         commands[parsed.command].action(parsed.args, {
             "user": user,
@@ -441,7 +462,8 @@ function processMessage(user, userID, channelID, message, rawEvent) {
             "channelID": channelID,
             "event": rawEvent,
             "bot": bot,
-            "db": database
+            "db": database,
+            "re": console.re
         });
     } else {
         if(database.messages[parsed.command]) {
@@ -512,12 +534,12 @@ function canUserRun(command, uid, channelID) {
 }
 
 function parse(string) {
-    if(string.charAt(0) != '!') {
+    if(string.indexOf(database.config.calling) != 0) {
         return false;
     }
-
+    string = string.substring(database.config.calling.length);
     var pieces = string.split(" ");
-    pieces[0] = pieces[0].slice(1, pieces[0].length);
+    //pieces[0] = pieces[0].slice(1, pieces[0].length);
 
     return {
         command: pieces[0],
