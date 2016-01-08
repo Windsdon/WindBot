@@ -4,6 +4,7 @@ var config = require("./config.json");
 var Vote = require("./vote");
 var Tracker = require("./tracker");
 var http = require("http");
+var consolere = require('console-remote-client').connect('console.re','80','windbot');
 
 var bot;
 
@@ -30,7 +31,8 @@ var commands = {
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "```\nBeep boop, I'm a bot!\n\nCommands:\n" + cmdlist + "```"
-            })
+            });
+            e.re.log(e.user + " asked for help, sent a list of commands ");
         }
 
     },
@@ -44,7 +46,8 @@ var commands = {
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "pong"
-            })
+            });
+            e.re.log(e.user + " pinged me!");
         }
     },
     myid: {
@@ -56,7 +59,8 @@ var commands = {
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "<@" + e.userID + ">, your ID is " + e.userID
-            })
+            });
+            e.re.log(e.user + " asked for his id, which was "+ e.userID);
         }
     },
     id: {
@@ -74,6 +78,7 @@ var commands = {
                 to: e.channelID,
                 message: "<@" + e.userID + "> " + uid
             })
+            e.re.log(e.user + " asked for annother users id, which was "+ uid);
         }
     },
     votestart: {
@@ -87,6 +92,7 @@ var commands = {
                     to: e.channelID,
                     message: "<@" + e.userID + "> another poll already in progress! End it with  `!voteend`"
                 });
+                e.re.log(e.user + " tried to start a poll, buts a poll is already running! ");
                 return;
             };
             if(args.length == 0) {
@@ -94,6 +100,7 @@ var commands = {
                     to: e.channelID,
                     message: "<@" + e.userID + "> can't start an empty poll!"
                 });
+                e.re.log(e.user + " tried to start an empty poll!");
                 return;
             }
             if(args.indexOf("%") == -1) {
@@ -108,7 +115,8 @@ var commands = {
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "<@" + e.userID + "> started a poll. Vote with `!vote <option number>`." + title + "\nOptions are:\n ```\n" + pollopts + "\n```"
-            })
+            });
+            e.re.log(e.user + " started poll: "+ title);
         }
     },
     vote: {
@@ -138,7 +146,8 @@ var commands = {
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "<@" + e.userID + "> started a poll. Vote with `!vote <option number>`." + votes[e.channelID].title + "\nOptions are:\n ```\n" + votes[e.channelID].optionsString() + "\n```"
-            })
+            });
+            e.re.log(e.user + " reminded people to vote!");
         }
     },
     voteend: {
@@ -162,6 +171,7 @@ var commands = {
                 to: e.channelID,
                 message: "Poll ended! Results:\n**" + votes[e.channelID].title + "**\n ```\n" + pollresult + "\n```"
             });
+            e.re.log(e.user + " ended poll: " + votes[e.channelID].title + " with result: \n" + pollresult);
             delete votes[e.channelID];
         }
     },
@@ -175,6 +185,7 @@ var commands = {
                 to: e.channelID,
                 message: "You monster >.<"
             });
+            e.re.log(e.user + " killed me.");
             process.exit(0);
         }
     },
@@ -183,6 +194,7 @@ var commands = {
             uid: ["114855677482106888"]
         },
         action: function(args, e) {
+            e.re.log(e.user + " is restarting me!");
             restart();
         }
     },
@@ -198,6 +210,7 @@ var commands = {
                 to: e.channelID,
                 message: args.join(" ")
             });
+            e.re.log(e.user + " made me say: " + args.join(" "));
         }
     },
     join: {
@@ -220,6 +233,7 @@ var commands = {
                     to: e.channelID,
                     message: "Message tracking started!"
                 });
+                e.re.log(e.user + " started message tracking!");
             }
         }
     },
@@ -234,6 +248,7 @@ var commands = {
                 to: e.channelID,
                 message: "I've been running for `" + t + " seconds`"
             });
+            e.re.log(e.user + " asked for my status, i´ve been running: " + t + " seconds`");
         }
     },
     enable: {
@@ -254,6 +269,7 @@ var commands = {
                 to: e.channelID,
                 message: "I will now monitor this channel :D"
             });
+            e.re.log(e.user + " made me monitor " + e.channel);
             e.db.saveConfig();
         }
     },
@@ -272,6 +288,7 @@ var commands = {
                 to: e.channelID,
                 message: "I will no longer monitor this channel :("
             });
+            e.re.log(e.user + " made me stop monitoring " + e.channel);
         }
     },
     roll: {
