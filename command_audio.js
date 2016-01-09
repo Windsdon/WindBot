@@ -5,6 +5,7 @@ var temp = require("temp").track();
 var https = require("https");
 var fs = require("fs");
 var ytdl = require('ytdl-core');
+var utils = require("./utils.js");
 
 SC.init({
     id: config.soundcloud.id,
@@ -20,9 +21,10 @@ module.exports = {
     announceChannel: false,
     playing: false,
     queue: [],
+    lastSearch: [],
     action: function(args, e) {
         console.log(args);
-        if(false && this.announceChannel != e.channelID && args[0] != "announce") {
+        if(this.announceChannel != e.channelID && args[0] != "announce") {
             e.bot.sendMessage({
                 to: e.channelID,
                 message: "<@" + e.userID + "> I can't be used here! Please change me to this channel before!"
@@ -32,6 +34,26 @@ module.exports = {
         if(args[0] == "join") {
             var channel = args[1];
             var self = this;
+            if(channel == "me") {
+                var server = utils.findServer(e);
+                if(!server) {
+                    e.bot.sendMessage({
+                        to: e.channelID,
+                        message: "<@" + e.userID + "> I can't seem to find your server!"
+                    });
+                    return;
+                }
+                var user = e.bot.servers[server].members[e.userID];
+                if(!user || !user.voice_channel_id) {
+                    e.bot.sendMessage({
+                        to: e.channelID,
+                        message: "<@" + e.userID + "> You are not in any voice channels!"
+                    });
+                    return;
+                }
+
+                channel = user.voice_channel_id;
+            }
             e.bot.joinVoiceChannel(channel, function() {
                 self.currentChannel = channel;
                 console.log("Now on channel " + channel);
@@ -246,6 +268,23 @@ module.exports = {
                 message: "<@" + e.userID + "> removed " + args[1]
             });
         } else if (args[0] == "queue") {
+            if(args[1] == "~") {
+                this.queue = this.queue.concat(this.lastSearch);
+                e.bot.sendMessage({
+                    to: e.channelID,
+                    message: "<@" + e.userID + "> queued: `" + JSON.stringify(this.lastSearch) + "`"
+                });
+                return;
+            }
+
+            if(!e.db.sounds[args[1]]) {
+                e.bot.sendMessage({
+                    to: e.channelID,
+                    message: "<@" + e.userID + "> I don't have that!"
+                });
+                return;
+            }
+
             this.queue.push(args[1]);
             e.bot.sendMessage({
                 to: e.channelID,
@@ -262,31 +301,94 @@ module.exports = {
             });
         } else if(args[0] == "next") {
             this.playNext(e, this.announceChannel);
+        } else if(args[0] == "search") {
+            if(!args[1] || args[1].length < 3) {
+                e.bot.sendMessage({
+                    to: e.channelID,
+                    message: "<@" + e.userID + "> you need at least 3 chars"
+                });
+                return;
+            }
+
+            var search = args[1];
+            var list = this.find(e.db.sounds, search);
+            this.lastSearch = list;
+            if(!list) {
+                e.bot.sendMessage({
+                    to: e.channelID,
+                    message: "<@" + e.userID + "> I found nothing for `" + search + "`"
+                });
+                return;
+            }
+            var str = "";
+            for(var i = 0; i < list.length; i++) {
+                var info = this.getInfoMessage(e, list[i], {
+                    provider: true
+                });
+                if(i) {
+                    str += "\n";
+                }
+                str += "* [" + list[i] + "] " + info;
+            }
+            e.bot.sendMessage({
+                to: e.channelID,
+                message: "<@" + e.userID + "> I found these things:\n" + str + "\n You can run `audio queue ~` to add them to the list"
+            });
         } else {
             e.bot.sendMessage({
                 to: e.channelID,
-                message: "<@" + e.userID + "> Usage: !audio <join|leave|add|remove|play|stop|sc>"
+                message: "<@" + e.userID + "> Usage: !audio <join|leave|add|remove|play|stop|sc|yt|search>"
             });
         }
     },
-    getInfoMessage: function(e, id) {
+    find: function(list, what) {
+        what = what.toLowerCase();
+        var keys = Object.keys(list);
+        var b = [];
+        for(var i = 0; i < keys.length; i++) {
+            var o = list[keys[i]];
+            var found = false;
+            if(keys[i].toLowerCase().indexOf(what) != -1 ||
+                o.file.toLowerCase().indexOf(what) != -1) {
+                found = true;
+            }
+            if(o.extra) {
+                if(o.extra.name && o.extra.name.toLowerCase().indexOf(what) != -1) {
+                    found = true;
+                }
+                if(o.extra.author && o.extra.author.toLowerCase().indexOf(what) != -1) {
+                    found = true;
+                }
+                if(o.extra.provider && o.extra.provider.toLowerCase().indexOf(what) != -1) {
+                    found = true;
+                }
+            }
+
+            if(found) {
+                b.push(keys[i]);
+            }
+        }
+
+        return b;
+    },
+    getInfoMessage: function(e, id, remove) {
         var info = e.db.sounds[id];
         if(!info.extra) {
-            return info.file;
+            return "A track named `" + info.file + "`";
         }
         var str = "";
-        if(info.extra.name) {
+        if(info.extra.name && (!remove || (remove && !remove.name))) {
             str += "**" + info.extra.name + "**";
-            if(info.extra.author) {
+            if(info.extra.author && (!remove || (remove && !remove.author))) {
                 str += " by *" + info.extra.author + "*";
             }
-        } else if(info.extra.author){
+        } else if(info.extra.author && (!remove || (remove && !remove.author))){
             str += "A track by **" + info.extra.author + "**";
         } else {
             str += "A track named `" + info.file + "`";
         }
 
-        if(info.extra.provider) {
+        if(info.extra.provider && (!remove || (remove && !remove.provider))) {
             str += "\n" + info.extra.provider;
         }
 
