@@ -2,7 +2,7 @@ var uidFromMention = /<@([0-9]+)>/;
 
 module.exports = {
     permission: {
-        uid: ["114855677482106888"],
+        uid: [require("./config.json").masterID],
         group: ["dev"],
         onlyMonitored: true
     },

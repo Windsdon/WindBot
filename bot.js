@@ -17,13 +17,13 @@ var uidFromMention = /<@([0-9]+)>/;
 
 var startTime = (new Date()).getTime();
 
-var masterID = "114855677482106888";
+var masterID = require("./config.json").masterID;
 
 var commands = {
     channel: require("./command_channel.js"),
     help: {
         permission: {
-            uid: ["114855677482106888"],
+            uid: ["masterID"],
             group: ["dev"],
             onlyMonitored: true
         },
@@ -40,7 +40,7 @@ var commands = {
     },
     ping: {
         permission: {
-            uid: ["114855677482106888"],
+            uid: [masterID],
             group: ["dev"],
             onlyMonitored: true
         },
@@ -180,7 +180,7 @@ var commands = {
     group: require("./command_group.js"),
     kill: {
         permission: {
-            uid: ["114855677482106888"]
+            uid: [masterID]
         },
         action: function(args, e) {
             e.bot.sendMessage({
@@ -193,7 +193,7 @@ var commands = {
     },
     restart: {
         permission: {
-            uid: ["114855677482106888"]
+            uid: [masterID]
         },
         action: function(args, e) {
             e.re.log(e.user + " is restarting me!");
