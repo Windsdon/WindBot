@@ -15,7 +15,7 @@ SC.init({
 
 module.exports = {
     permission: {
-        group: ["audio", "devs"]
+        group: ["audio", "dev"]
     },
     currentChannel: false,
     announceChannel: false,

@@ -49,6 +49,7 @@ function database() {
 
     this.isUserInGroup = function (uid, group) {
         if(!this.groups || !this.groups[group]) {
+            console.log("--- Tried to look at invalid group: " + group);
             return false;
         }
         for(var i = 0; i < this.groups[group].length; i++) {
